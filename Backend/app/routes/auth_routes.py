@@ -103,10 +103,6 @@ def get_current_user():
     """
     Get current user info
     
-    Returns:
-        {
-            "user": {object}
-        }
     """
     try:
         user_id = get_jwt_identity()
