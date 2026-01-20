@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { API_BASE_URL } from '../config/api';
 
@@ -56,9 +55,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    
+    <AuthContext.Provider value={{ user, login, logout }}>
       {children}
-    
+    </AuthContext.Provider>
   );
 };
 
