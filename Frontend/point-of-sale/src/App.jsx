@@ -10,6 +10,7 @@ import POSPage from './pages/POSPage';
 import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
 import ReportsPage from './pages/ReportsPage';
+import UsersPage from './pages/UsersPage';
 
 const AppContent = () => {
   const { user, logout } = useAuth();
@@ -21,11 +22,12 @@ const AppContent = () => {
   }
 
   const navigation = [
-    { id: 'pos', label: 'POS', icon: ShoppingCart },
-    { id: 'products', label: 'Products', icon: Package },
-    { id: 'inventory', label: 'Inventory', icon: BarChart3 },
-    { id: 'reports', label: 'Reports', icon: TrendingUp },
-  ];
+  { id: 'pos', label: 'POS', icon: ShoppingCart },
+  { id: 'products', label: 'Products', icon: Package },
+  { id: 'inventory', label: 'Inventory', icon: BarChart3, adminOnly: true },  
+  { id: 'reports', label: 'Reports', icon: TrendingUp, adminOnly: true },    
+  { id: 'users', label: 'Users', icon: User, adminOnly: true },             
+];
 
   const renderPage = () => {
     switch (currentPage) {
@@ -33,9 +35,15 @@ const AppContent = () => {
       case 'products': return <ProductsPage />;
       case 'inventory': return <InventoryPage />;
       case 'reports': return <ReportsPage />;
+      case 'users': return <UsersPage />;
       default: return <POSPage />;
     }
   };
+
+  //filter navigation based on role
+  const visibleNav = navigation.filter(item =>
+    !item.adminOnly || user.role === 'admin'
+  )
 
   const handleNavClick = (pageId) => {
     setCurrentPage(pageId);
@@ -80,7 +88,7 @@ const AppContent = () => {
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:block w-64 bg-white shadow-sm flex-shrink-0">
           <nav className="p-4 space-y-2">
-            {navigation.map(({ id, label, icon: Icon }) => (
+            {visibleNav.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => handleNavClick(id)}
@@ -118,7 +126,7 @@ const AppContent = () => {
                   </div>
                 </div>
 
-                {navigation.map(({ id, label, icon: Icon }) => (
+                {visibleNav.map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
                     onClick={() => handleNavClick(id)}
