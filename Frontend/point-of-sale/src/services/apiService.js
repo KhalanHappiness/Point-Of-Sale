@@ -1,4 +1,3 @@
-
 /* ============================================================
    API SERVICE
    Centralized API calls for all backend endpoints
@@ -7,12 +6,16 @@ import { API_BASE_URL } from '../config/api';
 
 const api = {
   async request(endpoint, options = {}) {
+    // ✅ Get JWT token stored after login
     const token = localStorage.getItem('token');
+
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
+        // ✅ Attach Authorization header if token exists
+        ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
     });
@@ -29,10 +32,11 @@ const api = {
      PRODUCT ENDPOINTS
      ------------------ */
   getProducts: (activeOnly = true) => 
-    api.request(`/products?active_only=${activeOnly}`),
-  
+    api.request(`/products?active_only=${activeOnly ? 'true' : 'false'}`),
+
   searchProducts: (query, activeOnly = true) => 
-    api.request(`/products/search?q=${query}&active_only=${activeOnly}`),
+   api.request(`/products/search?q=${query}&active_only=${activeOnly ? 'true' : 'false'}`),
+
   
   createProduct: (data) => 
     api.request('/products', { method: 'POST', body: JSON.stringify(data) }),

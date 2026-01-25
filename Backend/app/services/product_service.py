@@ -10,7 +10,7 @@ from sqlalchemy import or_
 class ProductService:
     
     @staticmethod
-    def create_product(sku, name, price, barcode=None, initial_stock=0):
+    def create_product(sku, name, min_price, max_price, barcode=None, initial_stock=0):  # CHANGED
         """
         Create a new product with initial inventory
         
@@ -21,11 +21,14 @@ class ProductService:
             ValueError: If validation fails
         """
         # Validate
-        if not sku or not name or price is None:
-            raise ValueError('SKU, name, and price are required')
+        if not sku or not name or min_price is None or max_price is None:  # CHANGED
+            raise ValueError('SKU, name, min_price, and max_price are required')
         
-        if price < 0:
-            raise ValueError('Price cannot be negative')
+        if min_price < 0 or max_price < 0:  # CHANGED
+            raise ValueError('Prices cannot be negative')
+        
+        if min_price > max_price:  # NEW
+            raise ValueError('Minimum price cannot be greater than maximum price')
         
         # Check if SKU exists
         if db.session.query(Product).filter_by(sku=sku).first():
@@ -40,7 +43,8 @@ class ProductService:
             product = Product(
                 sku=sku,
                 name=name,
-                price=price,
+                min_price=min_price,  # CHANGED
+                max_price=max_price,  # CHANGED
                 barcode=barcode
             )
             db.session.add(product)
@@ -65,7 +69,7 @@ class ProductService:
         """
         Update product details
         
-        Allowed fields: name, sku, barcode, price, is_active
+        Allowed fields: name, sku, barcode, min_price, max_price, is_active  # CHANGED
         
         Returns:
             Product object
@@ -77,7 +81,18 @@ class ProductService:
         if not product:
             raise ValueError('Product not found')
         
-        allowed_fields = ['name', 'sku', 'barcode', 'price', 'is_active']
+        allowed_fields = ['name', 'sku', 'barcode', 'min_price', 'max_price', 'is_active']  # CHANGED
+        
+        # Validate price range if both are being updated
+        if 'min_price' in kwargs and 'max_price' in kwargs:  # NEW
+            if kwargs['min_price'] > kwargs['max_price']:
+                raise ValueError('Minimum price cannot be greater than maximum price')
+        elif 'min_price' in kwargs:  # NEW
+            if kwargs['min_price'] > product.max_price:
+                raise ValueError('Minimum price cannot be greater than maximum price')
+        elif 'max_price' in kwargs:  # NEW
+            if product.min_price > kwargs['max_price']:
+                raise ValueError('Maximum price cannot be less than minimum price')
         
         for field, value in kwargs.items():
             if field not in allowed_fields:
@@ -92,7 +107,7 @@ class ProductService:
                 if db.session.query(Product).filter_by(barcode=value).first():
                     raise ValueError('Barcode already exists')
             
-            if field == 'price' and value < 0:
+            if field in ['min_price', 'max_price'] and value < 0:  # CHANGED
                 raise ValueError('Price cannot be negative')
             
             setattr(product, field, value)

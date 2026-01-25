@@ -72,8 +72,8 @@ class SalesService:
                 product = inventory.product
                 if not product.is_active:
                     raise ValueError(f'Product {product.name} is not active')
-                
-                price_at_sale = product.price
+
+                price_at_sale = item_data.get('price')
                 subtotal = price_at_sale * quantity
                 total_amount += subtotal
                 

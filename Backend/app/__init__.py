@@ -18,7 +18,9 @@ def create_app(config_class=Config):
     bcrypt.init_app(app)
     
     # Enable CORS
-    CORS(app, resources={
+    CORS(app, 
+         supports_credentials=True,
+         resources={
         r"/api/*": {
             "origins": ["http://localhost:3000", 
                 "http://localhost:5173",
@@ -28,6 +30,19 @@ def create_app(config_class=Config):
             "allow_headers": ["Content-Type", "Authorization"]
         }
     })
+    
+    # ✅ ADD JWT ERROR HANDLERS
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        return {'error': 'Token has expired'}, 401
+    
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return {'error': 'Invalid token', 'message': str(error)}, 422
+    
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return {'error': 'Authorization token is missing', 'message': str(error)}, 401
     
     # Register blueprints
     from app.routes.auth_routes import auth_bp

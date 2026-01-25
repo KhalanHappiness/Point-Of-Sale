@@ -24,7 +24,10 @@ def get_products():
         }
     """
     try:
-        active_only = request.args.get('active_only', 'true').lower() == 'true'
+        # Fix: Handle the query parameter properly
+        active_only_param = request.args.get('active_only', 'true')
+        active_only = active_only_param.lower() in ['true', '1', 'yes']
+        
         products = ProductService.get_all_products(active_only=active_only)
         
         return jsonify({
@@ -32,9 +35,9 @@ def get_products():
         }), 200
         
     except Exception as e:
+        print(f"Error in get_products: {str(e)}")  # Add logging
         return jsonify({'error': 'Failed to fetch products'}), 500
-
-
+    
 @product_bp.route('/search', methods=['GET'])
 @jwt_required()
 def search_products():
@@ -101,7 +104,8 @@ def create_product():
         {
             "sku": "string",
             "name": "string",
-            "price": number,
+            "min_price": number,  # CHANGED
+            "max_price": number,  # CHANGED
             "barcode": "string" (optional),
             "initial_stock": number (optional, default 0)
         }
@@ -120,7 +124,8 @@ def create_product():
         product = ProductService.create_product(
             sku=data.get('sku'),
             name=data.get('name'),
-            price=data.get('price'),
+            min_price=data.get('min_price'),  # CHANGED
+            max_price=data.get('max_price'),  # CHANGED
             barcode=data.get('barcode'),
             initial_stock=data.get('initial_stock', 0)
         )
@@ -130,7 +135,8 @@ def create_product():
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': 'Product creation failed'}), 500
+        print("CREATE PRODUCT ERROR:", str(e))
+        return jsonify({'error': str(e)}), 500
 
 
 @product_bp.route('/<int:product_id>', methods=['PUT'])
@@ -145,7 +151,8 @@ def update_product(product_id):
             "name": "string" (optional),
             "sku": "string" (optional),
             "barcode": "string" (optional),
-            "price": number (optional),
+            "min_price": number (optional),  # CHANGED
+            "max_price": number (optional),  # CHANGED
             "is_active": bool (optional)
         }
     
@@ -166,8 +173,8 @@ def update_product(product_id):
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': 'Product update failed'}), 500
-
+        print("UPDATE PRODUCT ERROR:", str(e))
+        return jsonify({'error': str(e)}), 500
 
 @product_bp.route('/<int:product_id>', methods=['DELETE'])
 @jwt_required()

@@ -1,4 +1,3 @@
-
 from datetime import datetime
 from app.extensions import db
 
@@ -10,7 +9,8 @@ class Product(db.Model):
     sku = db.Column(db.String(50), unique=True, nullable=False, index=True)
     name = db.Column(db.String(200), nullable=False, index=True)
     barcode = db.Column(db.String(100), unique=True, nullable=True, index=True)
-    price = db.Column(db.Numeric(10, 2), nullable=False)
+    min_price = db.Column(db.Numeric(10, 2), nullable=False)  # NEW
+    max_price = db.Column(db.Numeric(10, 2), nullable=False)  # NEW
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -26,7 +26,8 @@ class Product(db.Model):
             'sku': self.sku,
             'name': self.name,
             'barcode': self.barcode,
-            'price': float(self.price),
+            'min_price': float(self.min_price),  # CHANGED
+            'max_price': float(self.max_price),  # CHANGED
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
