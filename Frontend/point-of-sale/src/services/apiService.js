@@ -75,6 +75,24 @@ const api = {
   },
 
   /* ------------------
+   USER/AUTH ENDPOINTS
+      ------------------ */
+    registerUser: (data) => 
+      api.request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+
+    getUsers: () => 
+      api.request('/auth/users'), // You'll need to create this endpoint
+
+    getCurrentUser: () => 
+      api.request('/auth/me'),
+
+    updateUser: (id, data) => 
+      api.request(`/auth/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+    deleteUser: (id) => 
+      api.request(`/auth/users/${id}`, { method: 'DELETE' }),
+
+  /* ------------------
      REPORT ENDPOINTS
      ------------------ */
   getDailySales: (days = 7) => 
