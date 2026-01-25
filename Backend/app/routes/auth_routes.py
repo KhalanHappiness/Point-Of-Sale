@@ -114,3 +114,5 @@ def get_current_user():
         return jsonify({'user': user.to_dict()}), 200
     except Exception as e:
         return jsonify({'error': 'Failed to get user info'}), 500
+    
+

@@ -94,3 +94,89 @@ class AuthService:
     def get_user_by_id(user_id):
         """Get user by ID"""
         return db.session.query(User).filter_by(id=user_id).first()
+    
+    @staticmethod
+    def get_all_users():
+        """
+        Get all users (admin only)
+        
+        Returns:
+            list: List of User objects
+        """
+        return db.session.query(User).all()
+
+    @staticmethod
+    def update_user(user_id, email=None, role=None, password=None):
+        """
+        Update user information (admin only)
+        
+        Args:
+            user_id: ID of user to update
+            email: New email (optional)
+            role: New role (optional)
+            password: New password (optional)
+        
+        Returns:
+            User object
+        
+        Raises:
+            ValueError: If user not found or validation fails
+        """
+        user = db.session.query(User).filter_by(id=user_id).first()
+        
+        if not user:
+            raise ValueError('User not found')
+        
+        # Update email if provided
+        if email is not None:
+            # Check if email already exists for another user
+            existing = db.session.query(User).filter(
+                User.email == email,
+                User.id != user_id
+            ).first()
+            if existing:
+                raise ValueError('Email already exists')
+            user.email = email
+        
+        # Update role if provided
+        if role is not None:
+            if role not in ['admin', 'cashier']:
+                raise ValueError('Role must be "admin" or "cashier"')
+            user.role = role
+        
+        # Update password if provided
+        if password is not None and password.strip():
+            if len(password) < 8:
+                raise ValueError('Password must be at least 8 characters')
+            user.password = password  # Setter will hash it
+        
+        db.session.commit()
+        return user
+
+    @staticmethod
+    def delete_user(user_id, current_user_id):
+        """
+        Delete user (admin only)
+        
+        Args:
+            user_id: ID of user to delete
+            current_user_id: ID of current user (to prevent self-deletion)
+        
+        Returns:
+            bool: True if deleted
+        
+        Raises:
+            ValueError: If user not found or trying to delete self
+        """
+        if user_id == current_user_id:
+            raise ValueError('Cannot delete your own account')
+        
+        user = db.session.query(User).filter_by(id=user_id).first()
+        
+        if not user:
+            raise ValueError('User not found')
+        
+        db.session.delete(user)
+        db.session.commit()
+        
+        return True
