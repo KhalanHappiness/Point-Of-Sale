@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Edit2, Trash2, X, Users, Shield, User } from 'lucide-react';
+import api from '../services/apiService';
 
 const UsersPage = () => {
   const [users, setUsers] = useState([]);
@@ -19,40 +20,6 @@ const UsersPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Mock API calls - replace with your actual API service
-  const api = {
-    getUsers: async () => {
-      // TODO: Implement actual API call
-      // return await fetch('/api/users').then(r => r.json());
-      return { users: [] }; // Mock data
-    },
-    createUser: async (data) => {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create user');
-      }
-      
-      return response.json();
-    },
-    updateUser: async (id, data) => {
-      // TODO: Implement actual API call
-      console.log('Update user:', id, data);
-    },
-    deleteUser: async (id) => {
-      // TODO: Implement actual API call
-      console.log('Delete user:', id);
-    }
-  };
 
   useEffect(() => {
     loadUsers();
@@ -80,7 +47,7 @@ const UsersPage = () => {
       if (editingUser) {
         await api.updateUser(editingUser.id, formData);
       } else {
-        await api.createUser(formData);
+        await api.registerUser(formData);
       }
 
       setShowModal(false);
