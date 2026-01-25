@@ -116,3 +116,99 @@ def get_current_user():
         return jsonify({'error': 'Failed to get user info'}), 500
     
 
+@auth_bp.route('/users', methods=['GET'])
+@jwt_required()
+@require_role('admin')
+def get_users():
+    """
+    Get all users (Admin only)
+    
+    Returns:
+        {
+            "users": [
+                {
+                    "id": int,
+                    "username": "string",
+                    "email": "string",
+                    "role": "string",
+                    "is_active": bool,
+                    "created_at": "string"
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        users = AuthService.get_all_users()
+        return jsonify({
+            'users': [user.to_dict() for user in users]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch users'}), 500
+
+
+@auth_bp.route('/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
+@require_role('admin')
+def update_user(user_id):
+    """
+    Update user (Admin only)
+    
+    Request body:
+        {
+            "email": "string" (optional),
+            "role": "admin" | "cashier" (optional),
+            "password": "string" (optional)
+        }
+    
+    Returns:
+        {
+            "user": {object}
+        }
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    try:
+        user = AuthService.update_user(
+            user_id=user_id,
+            email=data.get('email'),
+            role=data.get('role'),
+            password=data.get('password')
+        )
+        return jsonify({'user': user.to_dict()}), 200
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'Update failed: {str(e)}'}), 500
+
+
+@auth_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+@require_role('admin')
+def delete_user(user_id):
+    """
+    Delete user (Admin only)
+    
+    Returns:
+        {
+            "message": "User deleted successfully"
+        }
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        
+        AuthService.delete_user(
+            user_id=user_id,
+            current_user_id=current_user_id
+        )
+        
+        return jsonify({'message': 'User deleted successfully'}), 200
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'Deletion failed: {str(e)}'}), 500
