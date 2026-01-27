@@ -218,3 +218,57 @@ def payment_method_report():
         
     except Exception as e:
         return jsonify({'error': 'Failed to generate report'}), 500
+    
+@report_bp.route('/cashiers', methods=['GET'])
+@jwt_required()
+@require_role('admin')
+def cashier_sales_report():
+    """
+    Get sales report per cashier with payment breakdown
+    Query params: days (default 7)
+    """
+    try:
+        days = request.args.get('days', 7, type=int)
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
+        # Aggregate sales per cashier and payment method
+        results = db.session.query(
+            Sale.user_id,
+            Sale.payment_method,
+            func.sum(Sale.total_amount).label('total'),
+            func.count(Sale.id).label('count')
+        ).filter(
+            Sale.created_at >= start_date
+        ).group_by(
+            Sale.user_id,
+            Sale.payment_method
+        ).all()
+
+        # Build report
+        from app.models.user import User
+        cashier_data = {}
+
+        for row in results:
+            if row.user_id not in cashier_data:
+                user = db.session.query(User).filter_by(id=row.user_id).first()
+                cashier_data[row.user_id] = {
+                    'cashier_id': row.user_id,
+                    'cashier_name': user.username if user else 'Unknown',
+                    'total_sales': 0,
+                    'transaction_count': 0,
+                    'cash': 0,
+                    'card': 0,
+                    'mobile': 0
+                }
+
+            cashier_data[row.user_id]['total_sales'] += float(row.total)
+            cashier_data[row.user_id]['transaction_count'] += row.count
+            cashier_data[row.user_id][row.payment_method] = float(row.total)
+
+        report = sorted(cashier_data.values(), key=lambda x: x['total_sales'], reverse=True)
+
+        return jsonify({'report': report}), 200
+
+    except Exception as e:
+        return jsonify({'error': f'Failed to generate cashier report: {str(e)}'}), 500

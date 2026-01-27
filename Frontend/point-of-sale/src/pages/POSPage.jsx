@@ -572,7 +572,7 @@ const POSPage = () => {
         </div>
       )}
     </div>
-  );
+  ); 
 };
 
 export default POSPage;

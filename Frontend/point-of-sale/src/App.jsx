@@ -23,7 +23,7 @@ const AppContent = () => {
 
   const navigation = [
   { id: 'pos', label: 'POS', icon: ShoppingCart },
-  { id: 'products', label: 'Products', icon: Package },
+  { id: 'products', label: 'Products', icon: Package, adminOnly: true },
   { id: 'inventory', label: 'Inventory', icon: BarChart3, adminOnly: true },  
   { id: 'reports', label: 'Reports', icon: TrendingUp, adminOnly: true },    
   { id: 'users', label: 'Users', icon: User, adminOnly: true },             
@@ -64,7 +64,7 @@ const AppContent = () => {
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600">POS System</h1>
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600">Zuribase Enterprise</h1>
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4">

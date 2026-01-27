@@ -35,7 +35,7 @@ const LoginPage = () => {
           <div className="inline-block p-3 bg-blue-100 rounded-full mb-4">
             <ShoppingCart className="w-12 h-12 text-blue-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800">POS System</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Zuribase Enterprise</h1>
           <p className="text-gray-600 mt-2">Sign in to continue</p>
         </div>
 

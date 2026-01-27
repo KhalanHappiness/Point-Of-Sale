@@ -12,6 +12,8 @@ const ReportsPage = () => {
   const [productPerformance, setProductPerformance] = useState([]);
   const [paymentReport, setPaymentReport] = useState(null);
   const [days, setDays] = useState(7);
+  const [cashierSales, setCashierSales] = useState([]);
+
 
   // Helper function to format currency with commas
   const formatCurrency = (amount) => {
@@ -24,15 +26,18 @@ const ReportsPage = () => {
 
   const loadReports = async () => {
     try {
-      const [daily, products, payments] = await Promise.all([
+      const [daily, products, payments, cashiers] = await Promise.all([
         api.getDailySales(days),
         api.getProductPerformance(days),
         api.getPaymentMethodReport(days),
+        api.getCashierSales(days),
       ]);
 
       setDailySales(daily.report);
       setProductPerformance(products.report);
       setPaymentReport(payments);
+      setCashierSales(cashiers.report);
+
     } catch (error) {
       console.error('Failed to load reports:', error);
     }
@@ -183,6 +188,42 @@ const ReportsPage = () => {
           ))}
         </div>
       </div>
+      {/* Cashier Sales */}
+      <div className="bg-white border rounded-lg p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">
+            Cashier Sales Performance
+          </h2>
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-full">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 sm:p-3 text-left text-xs sm:text-sm font-semibold">Cashier</th>
+                  <th className="p-2 sm:p-3 text-left text-xs sm:text-sm font-semibold">Total Sales</th>
+                  <th className="p-2 sm:p-3 text-left text-xs sm:text-sm font-semibold">Transactions</th>
+                  <th className="p-2 sm:p-3 text-left text-xs sm:text-sm font-semibold">Cash</th>
+                  <th className="p-2 sm:p-3 text-left text-xs sm:text-sm font-semibold">Card</th>
+                  <th className="p-2 sm:p-3 text-left text-xs sm:text-sm font-semibold">Mobile</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cashierSales.map(cashier => (
+                  <tr key={cashier.cashier_id} className="border-t hover:bg-gray-50">
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm font-medium">{cashier.cashier_name}</td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm font-semibold">
+                      Ksh. {formatCurrency(cashier.total_sales)}
+                    </td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm">{cashier.transaction_count}</td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm">{formatCurrency(cashier.cash)}</td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm">{formatCurrency(cashier.card)}</td>
+                    <td className="p-2 sm:p-3 text-xs sm:text-sm">{formatCurrency(cashier.mobile)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
     </div>
   );
 };

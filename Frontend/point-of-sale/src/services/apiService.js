@@ -103,6 +103,9 @@ const api = {
   
   getPaymentMethodReport: (days = 30) => 
     api.request(`/reports/payments?days=${days}`),
+  
+  getCashierSales: (days) => api.request(`/reports/cashiers?days=${days}`),
+
 };
 
 export default api;

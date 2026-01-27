@@ -127,7 +127,7 @@ const ProductsPage = () => {
                   {product.name}
                 </h3>
                 <p className="text-xs text-gray-500 truncate">
-                  SKU: {product.sku}
+                  Product Code: {product.sku}
                 </p>
               </div>
               
@@ -195,7 +195,7 @@ const ProductsPage = () => {
             <thead className="bg-gray-100">
               <tr>
                 <th className="p-3 text-left text-sm font-semibold">Product Name</th>
-                <th className="p-3 text-left text-sm font-semibold">SKU</th>
+                <th className="p-3 text-left text-sm font-semibold">Product Code</th>
                 <th className="p-3 text-left text-sm font-semibold">Barcode</th>
                 <th className="p-3 text-left text-sm font-semibold">Category</th>
                 <th className="p-3 text-left text-sm font-semibold">Min Price</th>
@@ -289,7 +289,7 @@ const ProductsPage = () => {
 
               <div>
                 <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-2">
-                  SKU *
+                  Product Code *
                 </label>
                 <input
                   type="text"
@@ -298,7 +298,7 @@ const ProductsPage = () => {
                     setFormData({ ...formData, sku: e.target.value })
                   }
                   className="w-full px-3 sm:px-4 py-2 border rounded-lg text-sm sm:text-base"
-                  placeholder="Enter SKU"
+                  placeholder="Enter Product Code"
                 />
               </div>
 
