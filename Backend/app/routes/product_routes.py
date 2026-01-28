@@ -1,6 +1,4 @@
-"""
-Product Routes
-"""
+# app/routes/product_routes.py
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.services.product_service import ProductService
@@ -13,36 +11,36 @@ product_bp = Blueprint('products', __name__)
 @jwt_required()
 def get_products():
     """
-    Get all products
+    Get all products with variants
     
     Query params:
         active_only: bool (default True)
     
     Returns:
         {
-            "products": [array]
+            "products": [array with variants]
         }
     """
     try:
-        # Fix: Handle the query parameter properly
         active_only_param = request.args.get('active_only', 'true')
         active_only = active_only_param.lower() in ['true', '1', 'yes']
         
         products = ProductService.get_all_products(active_only=active_only)
         
         return jsonify({
-            'products': [p.to_dict() for p in products]
+            'products': [p.to_dict(include_variants=True) for p in products]
         }), 200
         
     except Exception as e:
-        print(f"Error in get_products: {str(e)}")  # Add logging
+        print(f"Error in get_products: {str(e)}")
         return jsonify({'error': 'Failed to fetch products'}), 500
-    
+
+
 @product_bp.route('/search', methods=['GET'])
 @jwt_required()
 def search_products():
     """
-    Search products by name, SKU, or barcode
+    Search products by name or SKU
     
     Query params:
         q: string (search query)
@@ -50,7 +48,7 @@ def search_products():
     
     Returns:
         {
-            "products": [array]
+            "products": [array with variants]
         }
     """
     query = request.args.get('q', '')
@@ -63,7 +61,7 @@ def search_products():
         products = ProductService.search_products(query, active_only=active_only)
         
         return jsonify({
-            'products': [p.to_dict() for p in products]
+            'products': [p.to_dict(include_variants=True) for p in products]
         }), 200
         
     except Exception as e:
@@ -74,11 +72,11 @@ def search_products():
 @jwt_required()
 def get_product(product_id):
     """
-    Get single product
+    Get single product with variants
     
     Returns:
         {
-            "product": {object}
+            "product": {object with variants}
         }
     """
     try:
@@ -87,7 +85,7 @@ def get_product(product_id):
         if not product:
             return jsonify({'error': 'Product not found'}), 404
         
-        return jsonify({'product': product.to_dict()}), 200
+        return jsonify({'product': product.to_dict(include_variants=True)}), 200
         
     except Exception as e:
         return jsonify({'error': 'Failed to fetch product'}), 500
@@ -98,21 +96,29 @@ def get_product(product_id):
 @require_role('admin')
 def create_product():
     """
-    Create new product (Admin only)
+    Create new product with variants (Admin only)
     
     Request body:
         {
             "sku": "string",
             "name": "string",
-            "min_price": number,  # CHANGED
-            "max_price": number,  # CHANGED
-            "barcode": "string" (optional),
-            "initial_stock": number (optional, default 0)
+            "min_price": number,
+            "max_price": number,
+            "category_id": int (optional),
+            "brand_id": int (optional),
+            "variants": [
+                {
+                    "size_id": int,
+                    "quantity": int,
+                    "sku_suffix": "string" (optional)
+                },
+                ...
+            ]
         }
     
     Returns:
         {
-            "product": {object}
+            "product": {object with variants}
         }
     """
     data = request.get_json()
@@ -124,13 +130,14 @@ def create_product():
         product = ProductService.create_product(
             sku=data.get('sku'),
             name=data.get('name'),
-            min_price=data.get('min_price'),  # CHANGED
-            max_price=data.get('max_price'),  # CHANGED
-            barcode=data.get('barcode'),
-            initial_stock=data.get('initial_stock', 0)
+            min_price=data.get('min_price'),
+            max_price=data.get('max_price'),
+            category_id=data.get('category_id'),
+            brand_id=data.get('brand_id'),
+            variants_data=data.get('variants', [])
         )
         
-        return jsonify({'product': product.to_dict()}), 201
+        return jsonify({'product': product.to_dict(include_variants=True)}), 201
         
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
@@ -144,21 +151,30 @@ def create_product():
 @require_role('admin')
 def update_product(product_id):
     """
-    Update product (Admin only)
+    Update product with variants (Admin only)
     
     Request body:
         {
             "name": "string" (optional),
             "sku": "string" (optional),
-            "barcode": "string" (optional),
-            "min_price": number (optional),  # CHANGED
-            "max_price": number (optional),  # CHANGED
-            "is_active": bool (optional)
+            "min_price": number (optional),
+            "max_price": number (optional),
+            "category_id": int (optional),
+            "brand_id": int (optional),
+            "is_active": bool (optional),
+            "variants": [
+                {
+                    "size_id": int,
+                    "quantity": int,
+                    "sku_suffix": "string" (optional)
+                },
+                ...
+            ] (optional)
         }
     
     Returns:
         {
-            "product": {object}
+            "product": {object with variants}
         }
     """
     data = request.get_json()
@@ -168,13 +184,14 @@ def update_product(product_id):
     
     try:
         product = ProductService.update_product(product_id, **data)
-        return jsonify({'product': product.to_dict()}), 200
+        return jsonify({'product': product.to_dict(include_variants=True)}), 200
         
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         print("UPDATE PRODUCT ERROR:", str(e))
         return jsonify({'error': str(e)}), 500
+
 
 @product_bp.route('/<int:product_id>', methods=['DELETE'])
 @jwt_required()
