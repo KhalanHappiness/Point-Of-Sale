@@ -8,6 +8,8 @@ class Brand(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    description = db.Column(db.String(255), nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
@@ -17,6 +19,8 @@ class Brand(db.Model):
         return {
             'id': self.id,
             'name': self.name,
+            'description': self.description,
+            'is_active': self.is_active,
             'created_at': self.created_at.isoformat()
         }
     
