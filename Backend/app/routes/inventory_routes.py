@@ -2,7 +2,7 @@
 from app.extensions import db
 from app.models.product_variant import ProductVariant
 from app.models.stock_movement import StockMovement
-
+from app.models.product import Product
 
 class InventoryService:
     
