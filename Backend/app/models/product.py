@@ -20,9 +20,7 @@ class Product(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
-    # variants relationship is defined in ProductVariant with backref
-    sale_items = db.relationship('SaleItem', backref='product', lazy=True)
+    # Relationships (variants backref defined in ProductVariant)
     
     def get_total_stock(self):
         """Calculate total stock across all variants"""
