@@ -1,6 +1,4 @@
-"""
-Sales Routes
-"""
+# app/routes/sales_routes.py
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.sales_service import SalesService
@@ -18,8 +16,9 @@ def create_sale():
         {
             "items": [
                 {
-                    "product_id": 1,
-                    "quantity": 2
+                    "variant_id": int,
+                    "quantity": int,
+                    "price": float
                 },
                 ...
             ],
