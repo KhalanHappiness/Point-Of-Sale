@@ -1,165 +1,109 @@
-"""
-Inventory Routes
-"""
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+# app/services/inventory_service.py
 from app.extensions import db
-from app.models.inventory import Inventory
-from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.stock_movement import StockMovement
-from app.utils.permissions import require_role
-
-inventory_bp = Blueprint('inventory', __name__)
 
 
-@inventory_bp.route('', methods=['GET'])
-@jwt_required()
-def get_inventory():
-    """
-    Get all inventory levels
+class InventoryService:
     
-    Returns:
-        {
-            "inventory": [
-                {
-                    "product": {object},
-                    "quantity": int
-                },
-                ...
-            ]
-        }
-    """
-    try:
-        inventories = db.session.query(Inventory).join(Product).filter(
-            Product.is_active == True
+    @staticmethod
+    def get_all_inventory(active_products_only=True):
+        """
+        Get all inventory (all variants)
+        
+        Returns:
+            List of ProductVariant objects
+        """
+        query = db.session.query(ProductVariant)
+        
+        if active_products_only:
+            query = query.join(ProductVariant.product).filter(
+                Product.is_active == True
+            )
+        
+        return query.order_by(
+            ProductVariant.product_id,
+            ProductVariant.size_id
         ).all()
-        
-        result = []
-        for inv in inventories:
-            result.append({
-                'product': inv.product.to_dict(include_inventory=False),
-                'quantity': inv.quantity,
-                'updated_at': inv.updated_at.isoformat() if inv.updated_at else None
-            })
-        
-        return jsonify({'inventory': result}), 200
-        
-    except Exception as e:
-        return jsonify({'error': 'Failed to fetch inventory'}), 500
-
-
-@inventory_bp.route('/adjust', methods=['POST'])
-@jwt_required()
-@require_role('admin')
-def adjust_inventory():
-    """
-    Adjust inventory (Admin only)
     
-    Request body:
-        {
-            "product_id": int,
-            "change": int (positive or negative),
-            "reason": "restock" | "adjustment" | "damage",
-            "notes": "string" (optional)
-        }
+    @staticmethod
+    def adjust_variant_inventory(variant_id, change, reason, user_id, notes=None):
+        """
+        Adjust inventory for a specific variant
+        
+        Args:
+            variant_id: ID of the variant
+            change: int (positive or negative)
+            reason: 'restock', 'adjustment', 'damage'
+            user_id: ID of user making the change
+            notes: Optional notes
+        
+        Returns:
+            Updated ProductVariant object
+        """
+        valid_reasons = ['restock', 'adjustment', 'damage']
+        if reason not in valid_reasons:
+            raise ValueError(f'Invalid reason. Must be one of {valid_reasons}')
+        
+        try:
+            # Lock the variant
+            variant = db.session.query(ProductVariant).filter_by(
+                id=variant_id
+            ).with_for_update().first()
+            
+            if not variant:
+                raise ValueError('Product variant not found')
+            
+            # Check if adjustment would make quantity negative
+            new_quantity = variant.quantity + change
+            if new_quantity < 0:
+                raise ValueError(
+                    f'Invalid adjustment. Current: {variant.quantity}, Change: {change}'
+                )
+            
+            # Update quantity
+            variant.quantity = new_quantity
+            
+            # Create stock movement
+            movement = StockMovement(
+                variant_id=variant_id,
+                change=change,
+                reason=reason,
+                user_id=user_id,
+                notes=notes
+            )
+            db.session.add(movement)
+            
+            db.session.commit()
+            
+            return variant
+            
+        except Exception as e:
+            db.session.rollback()
+            raise Exception(f'Inventory adjustment failed: {str(e)}')
     
-    Returns:
-        {
-            "inventory": {object},
-            "movement": {object}
-        }
-    """
-    data = request.get_json()
-    
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    product_id = data.get('product_id')
-    change = data.get('change')
-    reason = data.get('reason')
-    notes = data.get('notes')
-    
-    if not product_id or change is None or not reason:
-        return jsonify({'error': 'product_id, change, and reason are required'}), 400
-    
-    if reason not in ['restock', 'adjustment', 'damage']:
-        return jsonify({'error': 'Invalid reason'}), 400
-    
-    try:
-        user_id = get_jwt_identity()
+    @staticmethod
+    def get_stock_movements(variant_id=None, product_id=None, limit=100):
+        """
+        Get stock movement history
         
-        # Get inventory
-        inventory = db.session.query(Inventory).filter_by(
-            product_id=product_id
-        ).with_for_update().first()
-        
-        if not inventory:
-            return jsonify({'error': 'Product inventory not found'}), 404
-        
-        # Check if adjustment would make quantity negative
-        new_quantity = inventory.quantity + change
-        if new_quantity < 0:
-            return jsonify({
-                'error': f'Invalid adjustment. Current: {inventory.quantity}, Change: {change}'
-            }), 400
-        
-        # Update inventory
-        inventory.quantity = new_quantity
-        
-        # Create stock movement
-        movement = StockMovement(
-            product_id=product_id,
-            change=change,
-            reason=reason,
-            user_id=user_id,
-            notes=notes
-        )
-        db.session.add(movement)
-        
-        db.session.commit()
-        
-        return jsonify({
-            'inventory': inventory.to_dict(),
-            'movement': movement.to_dict()
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Inventory adjustment failed: {str(e)}'}), 500
-
-
-@inventory_bp.route('/movements', methods=['GET'])
-@jwt_required()
-@require_role('admin')
-def get_stock_movements():
-    """
-    Get stock movement history (Admin only)
-    
-    Query params:
-        product_id: int (optional)
-        limit: int (default 100)
-    
-    Returns:
-        {
-            "movements": [array]
-        }
-    """
-    try:
-        product_id = request.args.get('product_id', type=int)
-        limit = request.args.get('limit', 100, type=int)
-        
+        Args:
+            variant_id: Filter by variant (optional)
+            product_id: Filter by product (optional)
+            limit: Max results
+        """
         query = db.session.query(StockMovement)
         
-        if product_id:
-            query = query.filter_by(product_id=product_id)
+        if variant_id:
+            query = query.filter_by(variant_id=variant_id)
+        elif product_id:
+            # Get all variants for this product, then filter movements
+            variant_ids = db.session.query(ProductVariant.id).filter_by(
+                product_id=product_id
+            ).all()
+            variant_ids = [v[0] for v in variant_ids]
+            query = query.filter(StockMovement.variant_id.in_(variant_ids))
         
-        movements = query.order_by(
+        return query.order_by(
             StockMovement.created_at.desc()
         ).limit(limit).all()
-        
-        return jsonify({
-            'movements': [m.to_dict() for m in movements]
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': 'Failed to fetch movements'}), 500
