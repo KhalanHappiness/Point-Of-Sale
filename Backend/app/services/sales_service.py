@@ -1,12 +1,8 @@
-"""
-Sales Service - Business Logic for Sales
-This is the CRITICAL service that handles atomic transactions
-"""
+# app/services/sales_service.py
 from app.extensions import db
 from app.models.sale import Sale, SaleItem
-from app.models.inventory import Inventory
+from app.models.product_variant import ProductVariant
 from app.models.stock_movement import StockMovement
-from sqlalchemy import select
 
 
 class SalesService:
@@ -18,15 +14,11 @@ class SalesService:
         
         Args:
             user_id: ID of the cashier
-            items_data: List of {'product_id': int, 'quantity': int}
+            items_data: List of {'variant_id': int, 'quantity': int, 'price': float}
             payment_method: 'cash', 'card', or 'mobile'
         
         Returns:
             Sale object with items
-        
-        Raises:
-            ValueError: If validation fails
-            Exception: If transaction fails
         """
         
         # Validate payment method
@@ -40,57 +32,65 @@ class SalesService:
         
         try:
             # BEGIN TRANSACTION
-            # Everything from here must succeed or rollback
-            
             sale_items = []
             total_amount = 0
             
             for item_data in items_data:
-                product_id = item_data.get('product_id')
+                variant_id = item_data.get('variant_id')
                 quantity = item_data.get('quantity')
+                price = item_data.get('price')
                 
-                if not product_id or not quantity or quantity <= 0:
-                    raise ValueError('Invalid item data')
+                if not variant_id or not quantity or quantity <= 0:
+                    raise ValueError('Invalid item data: variant_id and quantity required')
                 
-                # Lock the inventory row (prevents race conditions)
-                inventory = db.session.query(Inventory).filter_by(
-                    product_id=product_id
+                if not price or price <= 0:
+                    raise ValueError('Invalid price for item')
+                
+                # Lock the variant row (prevents race conditions)
+                variant = db.session.query(ProductVariant).filter_by(
+                    id=variant_id
                 ).with_for_update().first()
                 
-                if not inventory:
-                    raise ValueError(f'Product {product_id} has no inventory record')
+                if not variant:
+                    raise ValueError(f'Product variant {variant_id} not found')
                 
                 # Check stock availability
-                if inventory.quantity < quantity:
-                    product_name = inventory.product.name
+                if variant.quantity < quantity:
+                    product_name = variant.product.name if variant.product else 'Unknown'
+                    size_name = variant.size.name if variant.size else 'Unknown'
                     raise ValueError(
-                        f'Insufficient stock for {product_name}. '
-                        f'Available: {inventory.quantity}, Requested: {quantity}'
+                        f'Insufficient stock for {product_name} ({size_name}). '
+                        f'Available: {variant.quantity}, Requested: {quantity}'
                     )
                 
-                # Get current price
-                product = inventory.product
-                if not product.is_active:
-                    raise ValueError(f'Product {product.name} is not active')
-
-                price_at_sale = item_data.get('price')
-                subtotal = price_at_sale * quantity
+                # Check if product is active
+                if not variant.product.is_active:
+                    raise ValueError(f'Product {variant.product.name} is not active')
+                
+                # Validate price is within range
+                if price < float(variant.product.min_price) or price > float(variant.product.max_price):
+                    raise ValueError(
+                        f'Price {price} is outside allowed range '
+                        f'({variant.product.min_price} - {variant.product.max_price})'
+                    )
+                
+                subtotal = price * quantity
                 total_amount += subtotal
                 
                 # Deduct inventory
-                inventory.quantity -= quantity
+                variant.quantity -= quantity
                 
                 # Create sale item
                 sale_item = SaleItem(
-                    product_id=product_id,
+                    variant_id=variant_id,
                     quantity=quantity,
-                    price_at_sale=price_at_sale
+                    price_at_sale=price
                 )
                 sale_items.append(sale_item)
                 
                 # Create stock movement (audit trail)
                 movement = StockMovement(
-                    product_id=product_id,
+                    variant_id=variant_id,
                     change=-quantity,  # Negative for sale
                     reason='sale',
                     user_id=user_id
@@ -106,7 +106,7 @@ class SalesService:
             db.session.add(sale)
             db.session.flush()  # Get sale ID
             
-            # Link items to sale and add stock movement references
+            # Link items to sale
             for sale_item in sale_items:
                 sale_item.sale_id = sale.id
                 db.session.add(sale_item)
@@ -137,11 +137,3 @@ class SalesService:
         return db.session.query(Sale).order_by(
             Sale.created_at.desc()
         ).limit(limit).offset(offset).all()
-    
-    @staticmethod
-    def get_sales_by_date_range(start_date, end_date):
-        """Get sales within a date range"""
-        return db.session.query(Sale).filter(
-            Sale.created_at >= start_date,
-            Sale.created_at <= end_date
-        ).order_by(Sale.created_at.desc()).all()

@@ -1,209 +1,198 @@
-# app/services/product_service.py
-from app.extensions import db
-from app.models.product import Product
-from app.models.product_variant import ProductVariant
-from sqlalchemy import or_
+"""
+Product Routes
+"""
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
+from app.services.product_service import ProductService
+from app.utils.permissions import require_role
+
+product_bp = Blueprint('products', __name__)
 
 
-class ProductService:
+@product_bp.route('', methods=['GET'])
+@jwt_required()
+def get_products():
+    """
+    Get all products
     
-    @staticmethod
-    def create_product(sku, name, min_price, max_price, category_id=None, brand_id=None, variants_data=None):
-        """
-        Create a new product with variants
-        
-        Args:
-            variants_data: List of {'size_id': int, 'quantity': int, 'sku_suffix': str (optional)}
-        
-        Example:
-            variants_data = [
-                {'size_id': 1, 'quantity': 3, 'sku_suffix': '-SM'},
-                {'size_id': 2, 'quantity': 5, 'sku_suffix': '-MD'},
-            ]
-        """
-        # Validate
-        if not sku or not name or min_price is None or max_price is None:
-            raise ValueError('SKU, name, min_price, and max_price are required')
-        
-        if min_price < 0 or max_price < 0:
-            raise ValueError('Prices cannot be negative')
-        
-        if min_price > max_price:
-            raise ValueError('Minimum price cannot be greater than maximum price')
-        
-        # Check if SKU exists
-        if db.session.query(Product).filter_by(sku=sku).first():
-            raise ValueError('SKU already exists')
-        
-        try:
-            # Create product
-            product = Product(
-                sku=sku,
-                name=name,
-                min_price=min_price,
-                max_price=max_price,
-                category_id=category_id,
-                brand_id=brand_id
-            )
-            db.session.add(product)
-            db.session.flush()  # Get product ID
-            
-            # Create variants if provided
-            if variants_data:
-                for variant_data in variants_data:
-                    size_id = variant_data.get('size_id')
-                    quantity = variant_data.get('quantity', 0)
-                    sku_suffix = variant_data.get('sku_suffix')
-                    
-                    if not size_id:
-                        raise ValueError('size_id is required for each variant')
-                    
-                    # Check for duplicate size
-                    existing = db.session.query(ProductVariant).filter_by(
-                        product_id=product.id,
-                        size_id=size_id
-                    ).first()
-                    
-                    if existing:
-                        raise ValueError(f'Duplicate size_id {size_id} for this product')
-                    
-                    variant = ProductVariant(
-                        product_id=product.id,
-                        size_id=size_id,
-                        quantity=max(0, quantity),  # Ensure non-negative
-                        sku_suffix=sku_suffix
-                    )
-                    db.session.add(variant)
-            
-            db.session.commit()
-            return product
-            
-        except Exception as e:
-            db.session.rollback()
-            raise Exception(f'Failed to create product: {str(e)}')
+    Query params:
+        active_only: bool (default True)
     
-    @staticmethod
-    def update_product(product_id, **kwargs):
-        """
-        Update product details and variants
+    Returns:
+        {
+            "products": [array]
+        }
+    """
+    try:
+        # Fix: Handle the query parameter properly
+        active_only_param = request.args.get('active_only', 'true')
+        active_only = active_only_param.lower() in ['true', '1', 'yes']
         
-        Allowed fields: name, sku, min_price, max_price, category_id, brand_id, is_active, variants
+        products = ProductService.get_all_products(active_only=active_only)
         
-        variants format: [{'size_id': int, 'quantity': int, 'sku_suffix': str}]
-        """
-        product = db.session.query(Product).filter_by(id=product_id).first()
+        return jsonify({
+            'products': [p.to_dict() for p in products]
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in get_products: {str(e)}")  # Add logging
+        return jsonify({'error': 'Failed to fetch products'}), 500
+    
+@product_bp.route('/search', methods=['GET'])
+@jwt_required()
+def search_products():
+    """
+    Search products by name, SKU, or barcode
+    
+    Query params:
+        q: string (search query)
+        active_only: bool (default True)
+    
+    Returns:
+        {
+            "products": [array]
+        }
+    """
+    query = request.args.get('q', '')
+    
+    if not query:
+        return jsonify({'error': 'Search query required'}), 400
+    
+    try:
+        active_only = request.args.get('active_only', 'true').lower() == 'true'
+        products = ProductService.search_products(query, active_only=active_only)
+        
+        return jsonify({
+            'products': [p.to_dict() for p in products]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'Search failed'}), 500
+
+
+@product_bp.route('/<int:product_id>', methods=['GET'])
+@jwt_required()
+def get_product(product_id):
+    """
+    Get single product
+    
+    Returns:
+        {
+            "product": {object}
+        }
+    """
+    try:
+        product = ProductService.get_product(product_id)
+        
         if not product:
-            raise ValueError('Product not found')
+            return jsonify({'error': 'Product not found'}), 404
         
-        allowed_fields = ['name', 'sku', 'min_price', 'max_price', 'category_id', 'brand_id', 'is_active']
+        return jsonify({'product': product.to_dict()}), 200
         
-        # Validate price range
-        if 'min_price' in kwargs and 'max_price' in kwargs:
-            if kwargs['min_price'] > kwargs['max_price']:
-                raise ValueError('Minimum price cannot be greater than maximum price')
-        elif 'min_price' in kwargs:
-            if kwargs['min_price'] > product.max_price:
-                raise ValueError('Minimum price cannot be greater than maximum price')
-        elif 'max_price' in kwargs:
-            if product.min_price > kwargs['max_price']:
-                raise ValueError('Maximum price cannot be less than minimum price')
-        
-        try:
-            # Update basic fields
-            for field, value in kwargs.items():
-                if field not in allowed_fields and field != 'variants':
-                    continue
-                
-                if field == 'sku' and value != product.sku:
-                    if db.session.query(Product).filter_by(sku=value).first():
-                        raise ValueError('SKU already exists')
-                
-                if field in ['min_price', 'max_price'] and value < 0:
-                    raise ValueError('Price cannot be negative')
-                
-                if field in allowed_fields:
-                    setattr(product, field, value)
-            
-            # Update variants if provided
-            if 'variants' in kwargs:
-                variants_data = kwargs['variants']
-                
-                # Get existing variants
-                existing_variants = {v.size_id: v for v in product.variants}
-                provided_size_ids = set()
-                
-                for variant_data in variants_data:
-                    size_id = variant_data.get('size_id')
-                    quantity = variant_data.get('quantity', 0)
-                    sku_suffix = variant_data.get('sku_suffix')
-                    
-                    if not size_id:
-                        continue
-                    
-                    provided_size_ids.add(size_id)
-                    
-                    if size_id in existing_variants:
-                        # Update existing variant
-                        variant = existing_variants[size_id]
-                        variant.quantity = max(0, quantity)
-                        variant.sku_suffix = sku_suffix
-                    else:
-                        # Create new variant
-                        variant = ProductVariant(
-                            product_id=product.id,
-                            size_id=size_id,
-                            quantity=max(0, quantity),
-                            sku_suffix=sku_suffix
-                        )
-                        db.session.add(variant)
-                
-                # Remove variants not in the provided list
-                for size_id, variant in existing_variants.items():
-                    if size_id not in provided_size_ids:
-                        db.session.delete(variant)
-            
-            db.session.commit()
-            return product
-            
-        except Exception as e:
-            db.session.rollback()
-            raise Exception(f'Failed to update product: {str(e)}')
+    except Exception as e:
+        return jsonify({'error': 'Failed to fetch product'}), 500
+
+
+@product_bp.route('', methods=['POST'])
+@jwt_required()
+@require_role('admin')
+def create_product():
+    """
+    Create new product (Admin only)
     
-    @staticmethod
-    def delete_product(product_id):
-        """Soft delete product"""
-        product = db.session.query(Product).filter_by(id=product_id).first()
-        if not product:
-            raise ValueError('Product not found')
-        
-        product.is_active = False
-        db.session.commit()
-        return True
+    Request body:
+        {
+            "sku": "string",
+            "name": "string",
+            "min_price": number,  # CHANGED
+            "max_price": number,  # CHANGED
+            "barcode": "string" (optional),
+            "initial_stock": number (optional, default 0)
+        }
     
-    @staticmethod
-    def get_product(product_id):
-        """Get product by ID with variants"""
-        return db.session.query(Product).filter_by(id=product_id).first()
+    Returns:
+        {
+            "product": {object}
+        }
+    """
+    data = request.get_json()
     
-    @staticmethod
-    def get_all_products(active_only=True):
-        """Get all products with variants"""
-        query = db.session.query(Product)
-        if active_only:
-            query = query.filter_by(is_active=True)
-        return query.order_by(Product.name).all()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
     
-    @staticmethod
-    def search_products(query_string, active_only=True):
-        """Search products by name or SKU"""
-        query = db.session.query(Product)
-        
-        if active_only:
-            query = query.filter_by(is_active=True)
-        
-        search_filter = or_(
-            Product.name.ilike(f'%{query_string}%'),
-            Product.sku.ilike(f'%{query_string}%')
+    try:
+        product = ProductService.create_product(
+            sku=data.get('sku'),
+            name=data.get('name'),
+            min_price=data.get('min_price'),  # CHANGED
+            max_price=data.get('max_price'),  # CHANGED
+            barcode=data.get('barcode'),
+            initial_stock=data.get('initial_stock', 0)
         )
         
-        return query.filter(search_filter).limit(20).all()
+        return jsonify({'product': product.to_dict()}), 201
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        print("CREATE PRODUCT ERROR:", str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+@product_bp.route('/<int:product_id>', methods=['PUT'])
+@jwt_required()
+@require_role('admin')
+def update_product(product_id):
+    """
+    Update product (Admin only)
+    
+    Request body:
+        {
+            "name": "string" (optional),
+            "sku": "string" (optional),
+            "barcode": "string" (optional),
+            "min_price": number (optional),  # CHANGED
+            "max_price": number (optional),  # CHANGED
+            "is_active": bool (optional)
+        }
+    
+    Returns:
+        {
+            "product": {object}
+        }
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    try:
+        product = ProductService.update_product(product_id, **data)
+        return jsonify({'product': product.to_dict()}), 200
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        print("UPDATE PRODUCT ERROR:", str(e))
+        return jsonify({'error': str(e)}), 500
+
+@product_bp.route('/<int:product_id>', methods=['DELETE'])
+@jwt_required()
+@require_role('admin')
+def delete_product(product_id):
+    """
+    Delete product (Admin only) - Soft delete
+    
+    Returns:
+        {
+            "message": "Product deleted successfully"
+        }
+    """
+    try:
+        ProductService.delete_product(product_id)
+        return jsonify({'message': 'Product deleted successfully'}), 200
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': 'Product deletion failed'}), 500
