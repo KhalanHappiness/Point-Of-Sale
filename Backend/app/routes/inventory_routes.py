@@ -1,12 +1,7 @@
-"""
-Inventory Routes
-"""
+# app/routes/inventory_routes.py
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.extensions import db
-from app.models.inventory import Inventory
-from app.models.product import Product
-from app.models.stock_movement import StockMovement
+from app.services.inventory_service import InventoryService
 from app.utils.permissions import require_role
 
 inventory_bp = Blueprint('inventory', __name__)
@@ -16,13 +11,15 @@ inventory_bp = Blueprint('inventory', __name__)
 @jwt_required()
 def get_inventory():
     """
-    Get all inventory levels
+    Get all inventory levels (all product variants)
     
     Returns:
         {
             "inventory": [
                 {
+                    "variant": {object},
                     "product": {object},
+                    "size": {object},
                     "quantity": int
                 },
                 ...
@@ -30,16 +27,17 @@ def get_inventory():
         }
     """
     try:
-        inventories = db.session.query(Inventory).join(Product).filter(
-            Product.is_active == True
-        ).all()
+        variants = InventoryService.get_all_inventory(active_products_only=True)
         
         result = []
-        for inv in inventories:
+        for variant in variants:
             result.append({
-                'product': inv.product.to_dict(include_inventory=False),
-                'quantity': inv.quantity,
-                'updated_at': inv.updated_at.isoformat() if inv.updated_at else None
+                'variant_id': variant.id,
+                'product': variant.product.to_dict(include_variants=False) if variant.product else None,
+                'size': variant.size.to_dict() if variant.size else None,
+                'quantity': variant.quantity,
+                'full_sku': variant.to_dict()['full_sku'],
+                'updated_at': variant.updated_at.isoformat() if variant.updated_at else None
             })
         
         return jsonify({'inventory': result}), 200
@@ -53,11 +51,11 @@ def get_inventory():
 @require_role('admin')
 def adjust_inventory():
     """
-    Adjust inventory (Admin only)
+    Adjust inventory for a variant (Admin only)
     
     Request body:
         {
-            "product_id": int,
+            "variant_id": int,
             "change": int (positive or negative),
             "reason": "restock" | "adjustment" | "damage",
             "notes": "string" (optional)
@@ -65,7 +63,7 @@ def adjust_inventory():
     
     Returns:
         {
-            "inventory": {object},
+            "variant": {object},
             "movement": {object}
         }
     """
@@ -74,13 +72,13 @@ def adjust_inventory():
     if not data:
         return jsonify({'error': 'No data provided'}), 400
     
-    product_id = data.get('product_id')
+    variant_id = data.get('variant_id')
     change = data.get('change')
     reason = data.get('reason')
     notes = data.get('notes')
     
-    if not product_id or change is None or not reason:
-        return jsonify({'error': 'product_id, change, and reason are required'}), 400
+    if not variant_id or change is None or not reason:
+        return jsonify({'error': 'variant_id, change, and reason are required'}), 400
     
     if reason not in ['restock', 'adjustment', 'damage']:
         return jsonify({'error': 'Invalid reason'}), 400
@@ -88,43 +86,26 @@ def adjust_inventory():
     try:
         user_id = get_jwt_identity()
         
-        # Get inventory
-        inventory = db.session.query(Inventory).filter_by(
-            product_id=product_id
-        ).with_for_update().first()
-        
-        if not inventory:
-            return jsonify({'error': 'Product inventory not found'}), 404
-        
-        # Check if adjustment would make quantity negative
-        new_quantity = inventory.quantity + change
-        if new_quantity < 0:
-            return jsonify({
-                'error': f'Invalid adjustment. Current: {inventory.quantity}, Change: {change}'
-            }), 400
-        
-        # Update inventory
-        inventory.quantity = new_quantity
-        
-        # Create stock movement
-        movement = StockMovement(
-            product_id=product_id,
+        variant = InventoryService.adjust_variant_inventory(
+            variant_id=variant_id,
             change=change,
             reason=reason,
             user_id=user_id,
             notes=notes
         )
-        db.session.add(movement)
         
-        db.session.commit()
+        # Get the latest movement
+        movements = InventoryService.get_stock_movements(variant_id=variant_id, limit=1)
+        movement = movements[0] if movements else None
         
         return jsonify({
-            'inventory': inventory.to_dict(),
-            'movement': movement.to_dict()
+            'variant': variant.to_dict(),
+            'movement': movement.to_dict() if movement else None
         }), 200
         
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
-        db.session.rollback()
         return jsonify({'error': f'Inventory adjustment failed: {str(e)}'}), 500
 
 
@@ -136,6 +117,7 @@ def get_stock_movements():
     Get stock movement history (Admin only)
     
     Query params:
+        variant_id: int (optional)
         product_id: int (optional)
         limit: int (default 100)
     
@@ -145,17 +127,15 @@ def get_stock_movements():
         }
     """
     try:
+        variant_id = request.args.get('variant_id', type=int)
         product_id = request.args.get('product_id', type=int)
         limit = request.args.get('limit', 100, type=int)
         
-        query = db.session.query(StockMovement)
-        
-        if product_id:
-            query = query.filter_by(product_id=product_id)
-        
-        movements = query.order_by(
-            StockMovement.created_at.desc()
-        ).limit(limit).all()
+        movements = InventoryService.get_stock_movements(
+            variant_id=variant_id,
+            product_id=product_id,
+            limit=limit
+        )
         
         return jsonify({
             'movements': [m.to_dict() for m in movements]
