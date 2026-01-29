@@ -5,6 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
+import api from '../services/apiService';
+
+
 
 const ProductsPage = () => {
   const [products, setProducts] = useState([]);
@@ -23,16 +26,7 @@ const ProductsPage = () => {
     variants: []
   });
 
-  // Mock API - replace with your actual api service
-  const api = {
-    getProducts: async () => ({ products: [] }),
-    getCategories: async () => ({ categories: [] }),
-    getBrands: async () => ({ brands: [] }),
-    getSizes: async () => ({ sizes: [] }),
-    createProduct: async (data) => console.log('Create:', data),
-    updateProduct: async (id, data) => console.log('Update:', id, data),
-    deleteProduct: async (id) => console.log('Delete:', id)
-  };
+
 
   useEffect(() => {
     loadData();
