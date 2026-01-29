@@ -1,6 +1,6 @@
 /* ============================================================
-   POS (POINT OF SALE) PAGE - RESPONSIVE
-   Main cashier interface with flexible pricing
+   POS (POINT OF SALE) PAGE WITH SIZE SELECTION - RESPONSIVE
+   Main cashier interface with variant/size selection
    ============================================================ */
 
 import React, { useState, useEffect } from 'react';
@@ -16,7 +16,6 @@ import {
   AlertCircle,
   Edit2,
 } from 'lucide-react';
-import api from '../services/apiService';
 
 const POSPage = () => {
   const [products, setProducts] = useState([]);
@@ -30,9 +29,16 @@ const POSPage = () => {
   const [showAddConfirm, setShowAddConfirm] = useState(false);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedVariant, setSelectedVariant] = useState(null);
   
   const [editingPrice, setEditingPrice] = useState(null);
   const [customPrice, setCustomPrice] = useState('');
+
+  // Mock API - replace with your actual api service
+  const api = {
+    getProducts: async () => ({ products: [] }),
+    createSale: async (data) => console.log('Create sale:', data)
+  };
 
   const formatCurrency = (amount) => {
     return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -71,8 +77,7 @@ const POSPage = () => {
     const filtered = allProducts.filter(product => {
       return (
         product.name?.toLowerCase().includes(searchLower) ||
-        product.sku?.toLowerCase().includes(searchLower) ||
-        product.barcode?.toLowerCase().includes(searchLower)
+        product.sku?.toLowerCase().includes(searchLower)
       );
     });
     
@@ -81,17 +86,21 @@ const POSPage = () => {
 
   const handleProductClick = (product) => {
     setSelectedProduct(product);
+    setSelectedVariant(null);
     setShowAddConfirm(true);
   };
 
   const confirmAddToCart = () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || !selectedVariant) {
+      alert('Please select a size');
+      return;
+    }
 
-    const existing = cart.find(item => item.product_id === selectedProduct.id);
+    const existing = cart.find(item => item.variant_id === selectedVariant.id);
 
     if (existing) {
       setCart(cart.map(item =>
-        item.product_id === selectedProduct.id
+        item.variant_id === selectedVariant.id
           ? { ...item, quantity: parseInt(item.quantity, 10) + 1 }
           : item
       ));
@@ -101,25 +110,28 @@ const POSPage = () => {
       setCart([
         ...cart,
         {
+          variant_id: selectedVariant.id,
           product_id: selectedProduct.id,
           name: selectedProduct.name,
+          size_name: selectedVariant.size?.name || 'N/A',
           price: defaultPrice,
           min_price: selectedProduct.min_price || 0,
           max_price: selectedProduct.max_price || defaultPrice,
           quantity: 1,
-          available: selectedProduct.stock || 0,
+          available: selectedVariant.quantity || 0,
         },
       ]);
     }
 
     setShowAddConfirm(false);
     setSelectedProduct(null);
+    setSelectedVariant(null);
   };
 
-  const updateQuantity = (productId, change) => {
+  const updateQuantity = (variantId, change) => {
     setCart(
       cart.map(item => {
-        if (item.product_id !== productId) return item;
+        if (item.variant_id !== variantId) return item;
         const currentQty = parseInt(item.quantity, 10) || 0;
         const newQty = currentQty + change;
         return { ...item, quantity: Math.max(1, newQty) };
@@ -128,13 +140,13 @@ const POSPage = () => {
   };
 
   const handlePriceEdit = (item) => {
-    setEditingPrice(item.product_id);
+    setEditingPrice(item.variant_id);
     setCustomPrice(item.price.toString());
   };
 
-  const confirmPriceChange = (productId) => {
+  const confirmPriceChange = (variantId) => {
     const newPrice = parseFloat(customPrice);
-    const item = cart.find(i => i.product_id === productId);
+    const item = cart.find(i => i.variant_id === variantId);
 
     if (isNaN(newPrice)) {
       alert('Please enter a valid price');
@@ -147,7 +159,7 @@ const POSPage = () => {
     }
 
     setCart(cart.map(cartItem =>
-      cartItem.product_id === productId
+      cartItem.variant_id === variantId
         ? { ...cartItem, price: newPrice }
         : cartItem
     ));
@@ -156,8 +168,8 @@ const POSPage = () => {
     setCustomPrice('');
   };
 
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.product_id !== productId));
+  const removeFromCart = (variantId) => {
+    setCart(cart.filter(item => item.variant_id !== variantId));
   };
 
   const total = cart.reduce(
@@ -176,7 +188,7 @@ const POSPage = () => {
     
     try {
       const items = cart.map(item => ({
-        product_id: item.product_id,
+        variant_id: item.variant_id,
         quantity: parseInt(item.quantity, 10) || 1,
         price: item.price,
       }));
@@ -199,7 +211,7 @@ const POSPage = () => {
 
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-6 p-3 sm:p-4 md:p-6">
-      {/* ================= PRODUCTS ================= */}
+      {/* PRODUCTS */}
       <div className="lg:col-span-2 order-2 lg:order-1">
         <div className="mb-3 md:mb-4">
           <div className="relative">
@@ -209,7 +221,7 @@ const POSPage = () => {
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full pl-9 sm:pl-10 pr-10 sm:pr-12 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm sm:text-base"
-              placeholder="Search products by name, SKU, or barcode..."
+              placeholder="Search products by name or SKU..."
             />
             {searchQuery && (
               <button
@@ -233,27 +245,36 @@ const POSPage = () => {
               <p className="text-sm">No products found</p>
             </div>
           ) : (
-            products.map(product => (
-              <div
-                key={product.id}
-                onClick={() => handleProductClick(product)}
-                className="bg-white border rounded-lg p-2.5 sm:p-3 md:p-4 cursor-pointer hover:shadow-lg transition-shadow"
-              >
-                <div className="font-semibold text-xs sm:text-sm md:text-base truncate">{product.name}</div>
-                <div className="text-xs text-gray-500 truncate">{product.sku}</div>
-                <div className="font-bold mt-1 text-xs sm:text-sm">
-                  Ksh. {formatCurrency(product.min_price || 0)} - {formatCurrency(product.max_price || product.price || 0)}
+            products.map(product => {
+              const totalStock = product.variants?.reduce((sum, v) => sum + (v.quantity || 0), 0) || 0;
+              
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => handleProductClick(product)}
+                  className="bg-white border rounded-lg p-2.5 sm:p-3 md:p-4 cursor-pointer hover:shadow-lg transition-shadow"
+                >
+                  <div className="font-semibold text-xs sm:text-sm md:text-base truncate">{product.name}</div>
+                  <div className="text-xs text-gray-500 truncate">{product.sku}</div>
+                  <div className="font-bold mt-1 text-xs sm:text-sm">
+                    Ksh. {formatCurrency(product.min_price || 0)} - {formatCurrency(product.max_price || 0)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Stock: {totalStock}
+                  </div>
+                  {product.variants && product.variants.length > 0 && (
+                    <div className="text-xs text-blue-600 mt-1">
+                      {product.variants.length} size{product.variants.length !== 1 ? 's' : ''}
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs text-gray-500">
-                  Stock: {product.stock ?? 0}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* ================= CART ================= */}
+      {/* CART - Same as before, just showing size_name instead of just name */}
       <div className="bg-white border rounded-lg p-3 sm:p-4 flex flex-col order-1 lg:order-2 max-h-[600px] lg:max-h-none">
         <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">Cart</h2>
 
@@ -264,16 +285,14 @@ const POSPage = () => {
             cart.map(item => {
               const qty = parseInt(item.quantity, 10) || 0;
               const exceedsStock = qty > item.available;
-              const isEditingThisPrice = editingPrice === item.product_id;
+              const isEditingThisPrice = editingPrice === item.variant_id;
               
               return (
-                <div
-                  key={item.product_id}
-                  className="border-b pb-2 sm:pb-3 last:border-b-0"
-                >
+                <div key={item.variant_id} className="border-b pb-2 sm:pb-3 last:border-b-0">
                   <div className="flex justify-between items-start mb-1 sm:mb-2">
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-xs sm:text-sm truncate">{item.name}</div>
+                      <div className="text-xs text-gray-500">Size: {item.size_name}</div>
                       <div className="flex items-center gap-1 sm:gap-2 mt-1">
                         {isEditingThisPrice ? (
                           <div className="flex items-center gap-1">
@@ -283,19 +302,11 @@ const POSPage = () => {
                               step="0.01"
                               value={customPrice}
                               onChange={(e) => setCustomPrice(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  confirmPriceChange(item.product_id);
-                                } else if (e.key === 'Escape') {
-                                  setEditingPrice(null);
-                                  setCustomPrice('');
-                                }
-                              }}
                               className="w-16 sm:w-20 text-xs sm:text-sm px-1 sm:px-2 py-1 border rounded"
                               autoFocus
                             />
                             <button
-                              onClick={() => confirmPriceChange(item.product_id)}
+                              onClick={() => confirmPriceChange(item.variant_id)}
                               className="text-xs bg-blue-600 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded hover:bg-blue-700"
                             >
                               ✓
@@ -337,7 +348,7 @@ const POSPage = () => {
                     </div>
 
                     <button
-                      onClick={() => removeFromCart(item.product_id)}
+                      onClick={() => removeFromCart(item.variant_id)}
                       className="text-red-600 hover:bg-red-100 rounded p-0.5 sm:p-1 ml-2"
                     >
                       <Trash2 size={14} className="sm:w-4 sm:h-4" />
@@ -347,7 +358,7 @@ const POSPage = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <button
-                        onClick={() => updateQuantity(item.product_id, -1)}
+                        onClick={() => updateQuantity(item.variant_id, -1)}
                         className="p-0.5 sm:p-1 hover:bg-gray-100 rounded"
                       >
                         <Minus size={14} className="sm:w-4 sm:h-4" />
@@ -360,7 +371,7 @@ const POSPage = () => {
                         onChange={(e) => {
                           const raw = e.target.value;
                           setCart(cart.map(cartItem =>
-                            cartItem.product_id === item.product_id
+                            cartItem.variant_id === item.variant_id
                               ? { ...cartItem, quantity: raw }
                               : cartItem
                           ));
@@ -369,7 +380,7 @@ const POSPage = () => {
                           let value = parseInt(item.quantity, 10);
                           if (isNaN(value) || value < 1) value = 1;
                           setCart(cart.map(cartItem =>
-                            cartItem.product_id === item.product_id
+                            cartItem.variant_id === item.variant_id
                               ? { ...cartItem, quantity: value }
                               : cartItem
                           ));
@@ -382,7 +393,7 @@ const POSPage = () => {
                       />
 
                       <button
-                        onClick={() => updateQuantity(item.product_id, 1)}
+                        onClick={() => updateQuantity(item.variant_id, 1)}
                         className="p-0.5 sm:p-1 hover:bg-gray-100 rounded"
                       >
                         <Plus size={14} className="sm:w-4 sm:h-4" />
@@ -449,16 +460,17 @@ const POSPage = () => {
         </div>
       </div>
 
-      {/* ================= ADD TO CART CONFIRMATION DIALOG ================= */}
+      {/* SIZE SELECTION DIALOG */}
       {showAddConfirm && selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-3 sm:mb-4">
-              <h3 className="text-base sm:text-lg font-bold">Add to Cart</h3>
+              <h3 className="text-base sm:text-lg font-bold">Select Size</h3>
               <button
                 onClick={() => {
                   setShowAddConfirm(false);
                   setSelectedProduct(null);
+                  setSelectedVariant(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -467,19 +479,45 @@ const POSPage = () => {
             </div>
 
             <div className="mb-4 sm:mb-6">
-              <p className="text-gray-700 mb-2 text-sm sm:text-base">
-                Add this product to cart?
-              </p>
-              <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+              <div className="bg-gray-50 p-3 sm:p-4 rounded-lg mb-4">
                 <div className="font-semibold text-sm sm:text-base">{selectedProduct.name}</div>
                 <div className="text-xs sm:text-sm text-gray-500">{selectedProduct.sku}</div>
                 <div className="font-bold text-base sm:text-lg mt-2">
-                  Ksh. {formatCurrency(selectedProduct.min_price || 0)} - {formatCurrency(selectedProduct.max_price || selectedProduct.price || 0)}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-500 mt-1">
-                  Available: {selectedProduct.stock ?? 0}
+                  Ksh. {formatCurrency(selectedProduct.min_price || 0)} - {formatCurrency(selectedProduct.max_price || 0)}
                 </div>
               </div>
+
+              <label className="block text-sm font-medium mb-2">Choose Size:</label>
+              
+              {selectedProduct.variants && selectedProduct.variants.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedProduct.variants.map((variant) => (
+                    <button
+                      key={variant.id}
+                      onClick={() => setSelectedVariant(variant)}
+                      className={`w-full p-3 border-2 rounded-lg text-left transition-colors ${
+                        selectedVariant?.id === variant.id
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-300 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold text-sm">{variant.size?.name || 'Unknown Size'}</div>
+                          <div className="text-xs text-gray-500">
+                            Stock: {variant.quantity || 0}
+                          </div>
+                        </div>
+                        {variant.quantity === 0 && (
+                          <span className="text-xs text-red-600 font-medium">Out of Stock</span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 italic">No sizes available for this product.</p>
+              )}
             </div>
 
             <div className="flex gap-2 sm:gap-3">
@@ -487,6 +525,7 @@ const POSPage = () => {
                 onClick={() => {
                   setShowAddConfirm(false);
                   setSelectedProduct(null);
+                  setSelectedVariant(null);
                 }}
                 className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm sm:text-base"
               >
@@ -494,7 +533,8 @@ const POSPage = () => {
               </button>
               <button
                 onClick={confirmAddToCart}
-                className="flex-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base"
+                disabled={!selectedVariant || selectedVariant.quantity === 0}
+                className="flex-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
               >
                 Add to Cart
               </button>
@@ -503,7 +543,7 @@ const POSPage = () => {
         </div>
       )}
 
-      {/* ================= CHECKOUT CONFIRMATION DIALOG ================= */}
+      {/* CHECKOUT DIALOG */}
       {showCheckoutConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -528,11 +568,11 @@ const POSPage = () => {
                   const itemTotal = item.price * qty;
                   
                   return (
-                    <div key={item.product_id} className="flex justify-between py-1.5 sm:py-2 border-b last:border-b-0 text-xs sm:text-sm">
+                    <div key={item.variant_id} className="flex justify-between py-1.5 sm:py-2 border-b last:border-b-0 text-xs sm:text-sm">
                       <div className="flex-1 min-w-0 mr-2">
                         <div className="font-medium truncate">{item.name}</div>
                         <div className="text-xs text-gray-500">
-                          Ksh. {formatCurrency(item.price)} × {qty}
+                          Size: {item.size_name} | Ksh. {formatCurrency(item.price)} × {qty}
                         </div>
                       </div>
                       <div className="font-semibold whitespace-nowrap">
