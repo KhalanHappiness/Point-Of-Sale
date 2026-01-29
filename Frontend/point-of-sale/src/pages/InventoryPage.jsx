@@ -4,6 +4,7 @@
    ============================================================ */
 
 import React, { useState, useEffect } from 'react';
+import api from '../services/apiService';
 
 const InventoryPage = () => {
   const [inventory, setInventory] = useState([]);
@@ -15,11 +16,7 @@ const InventoryPage = () => {
     notes: '',
   });
 
-  // Mock API - replace with your actual api service
-  const api = {
-    getInventory: async () => ({ inventory: [] }),
-    adjustInventory: async (data) => console.log('Adjust:', data)
-  };
+ 
 
   useEffect(() => {
     loadInventory();
