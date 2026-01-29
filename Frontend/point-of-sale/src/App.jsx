@@ -11,6 +11,7 @@ import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
+import AttributesPage from './pages/AttributesPage';
 
 const AppContent = () => {
   const { user, logout } = useAuth();
@@ -24,6 +25,7 @@ const AppContent = () => {
   const navigation = [
   { id: 'pos', label: 'POS', icon: ShoppingCart },
   { id: 'products', label: 'Products', icon: Package, adminOnly: true },
+  { id: 'attributes', label: 'Attributes', icon: Package, adminOnly: true },
   { id: 'inventory', label: 'Inventory', icon: BarChart3, adminOnly: true },  
   { id: 'reports', label: 'Reports', icon: TrendingUp, adminOnly: true },    
   { id: 'users', label: 'Users', icon: User, adminOnly: true },             
@@ -33,6 +35,7 @@ const AppContent = () => {
     switch (currentPage) {
       case 'pos': return <POSPage />;
       case 'products': return <ProductsPage />;
+      case 'attributes': return <AttributesPage />;
       case 'inventory': return <InventoryPage />;
       case 'reports': return <ReportsPage />;
       case 'users': return <UsersPage />;
