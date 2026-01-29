@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Tag, Award, Ruler } from 'lucide-react';
+import api from '../services/apiService';
 
 const AttributesPage = () => {
   const [activeTab, setActiveTab] = useState('categories');
@@ -19,23 +20,7 @@ const AttributesPage = () => {
     description: ''
   });
 
-  // Mock API - replace with your actual api service
-  const api = {
-    getCategories: async () => ({ categories: [] }),
-    createCategory: async (data) => console.log('Create category:', data),
-    updateCategory: async (id, data) => console.log('Update category:', id, data),
-    deleteCategory: async (id) => console.log('Delete category:', id),
-    
-    getBrands: async () => ({ brands: [] }),
-    createBrand: async (data) => console.log('Create brand:', data),
-    updateBrand: async (id, data) => console.log('Update brand:', id, data),
-    deleteBrand: async (id) => console.log('Delete brand:', id),
-    
-    getSizes: async () => ({ sizes: [] }),
-    createSize: async (data) => console.log('Create size:', data),
-    updateSize: async (id, data) => console.log('Update size:', id, data),
-    deleteSize: async (id) => console.log('Delete size:', id),
-  };
+
 
   useEffect(() => {
     loadData();
