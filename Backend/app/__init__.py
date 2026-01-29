@@ -52,12 +52,18 @@ def create_app(config_class=Config):
     from app.routes.sales_routes import sales_bp
     from app.routes.inventory_routes import inventory_bp
     from app.routes.report_routes import report_bp
+    from app.routes.size_route import size_bp
+    from app.routes.category_route import category_bp
+    from app.routes.brand_route import brand_bp    
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(product_bp, url_prefix='/api/products')
     app.register_blueprint(sales_bp, url_prefix='/api/sales')
     app.register_blueprint(inventory_bp, url_prefix='/api/inventory')
     app.register_blueprint(report_bp, url_prefix='/api/reports')
+    app.register_blueprint(size_bp, url_prefix='/api/sizes')
+    app.register_blueprint(category_bp, url_prefix='/api/categories')
+    app.register_blueprint(brand_bp, url_prefix='/api/brands')
     
     # Error handlers
     @app.errorhandler(404)
