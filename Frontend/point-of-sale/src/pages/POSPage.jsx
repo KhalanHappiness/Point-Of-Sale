@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Edit2,
 } from 'lucide-react';
+import api from '../services/apiService';
 
 const POSPage = () => {
   const [products, setProducts] = useState([]);
@@ -34,12 +35,7 @@ const POSPage = () => {
   const [editingPrice, setEditingPrice] = useState(null);
   const [customPrice, setCustomPrice] = useState('');
 
-  // Mock API - replace with your actual api service
-  const api = {
-    getProducts: async () => ({ products: [] }),
-    createSale: async (data) => console.log('Create sale:', data)
-  };
-
+  
   const formatCurrency = (amount) => {
     return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
