@@ -90,7 +90,7 @@ def daily_sales_report():
 @require_role('admin')
 def product_performance_report():
     """
-    Get product performance report
+    Get product performance report - UPDATED FOR VARIANTS
     
     Query params:
         days: int (default 30) - number of days to include
@@ -117,14 +117,19 @@ def product_performance_report():
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=days)
         
-        # Query top selling products
+        # Import ProductVariant
+        from app.models.product_variant import ProductVariant
+        
+        # Query top selling products (aggregated across all variants)
         results = db.session.query(
             Product.id,
             Product.name,
             func.sum(SaleItem.quantity).label('units_sold'),
             func.sum(SaleItem.quantity * SaleItem.price_at_sale).label('revenue')
         ).join(
-            SaleItem, Product.id == SaleItem.product_id
+            ProductVariant, Product.id == ProductVariant.product_id
+        ).join(
+            SaleItem, ProductVariant.id == SaleItem.variant_id  # CHANGED: variant_id instead of product_id
         ).join(
             Sale, SaleItem.sale_id == Sale.id
         ).filter(
@@ -148,8 +153,8 @@ def product_performance_report():
         return jsonify({'report': report}), 200
         
     except Exception as e:
+        print(f"Product performance report error: {str(e)}")  # For debugging
         return jsonify({'error': 'Failed to generate report'}), 500
-
 
 @report_bp.route('/payments', methods=['GET'])
 @jwt_required()
