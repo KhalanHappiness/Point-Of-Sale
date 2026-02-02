@@ -59,8 +59,7 @@ const AppContent = () => {
   return (
     <div className="h-screen flex flex-col bg-gray-100">
       {/* Header */}
-      <header className="bg-white shadow-sm flex-shrink-0 z-20">
-        <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex items-center justify-between">
+        <header className="bg-gradient-to-r from-blue-600 to-blue-300 shadow-sm flex-shrink-0 z-20">        <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Mobile menu button */}
             <button
@@ -70,7 +69,7 @@ const AppContent = () => {
               {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600">Zuribase Enterprise</h1>
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">Zuribase Enterprise</h1>
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4">
