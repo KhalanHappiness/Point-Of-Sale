@@ -3,7 +3,7 @@
    Handles navigation and layout with mobile menu
    ============================================================ */
 import React, { useState } from 'react';
-import { ShoppingCart, Package, BarChart3, TrendingUp, LogOut, User, Menu, X } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, TrendingUp, LogOut, User, Menu, X, Tag, FileText } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
 import POSPage from './pages/POSPage';
@@ -12,6 +12,7 @@ import InventoryPage from './pages/InventoryPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import AttributesPage from './pages/AttributesPage';
+import AuditTrailPage from './pages/AuditTrailPage';
 
 const AppContent = () => {
   const { user, logout } = useAuth();
@@ -25,9 +26,10 @@ const AppContent = () => {
   const navigation = [
   { id: 'pos', label: 'POS', icon: ShoppingCart },
   { id: 'products', label: 'Products', icon: Package, adminOnly: true },
-  { id: 'attributes', label: 'Attributes', icon: Package, adminOnly: true },
+  { id: 'attributes', label: 'Attributes', icon: Tag, adminOnly: true },
   { id: 'inventory', label: 'Inventory', icon: BarChart3, adminOnly: true },  
-  { id: 'reports', label: 'Reports', icon: TrendingUp, adminOnly: true },    
+  { id: 'reports', label: 'Reports', icon: TrendingUp, adminOnly: true },   
+  { id: 'audit', label: 'Audit Trail', icon: FileText, adminOnly: true }, 
   { id: 'users', label: 'Users', icon: User, adminOnly: true },             
 ];
 
@@ -38,6 +40,7 @@ const AppContent = () => {
       case 'attributes': return <AttributesPage />;
       case 'inventory': return <InventoryPage />;
       case 'reports': return <ReportsPage />;
+      case 'audit': return <AuditTrailPage />;
       case 'users': return <UsersPage />;
       default: return <POSPage />;
     }
