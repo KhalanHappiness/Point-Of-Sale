@@ -1,6 +1,6 @@
 /* ============================================================
-   POS (POINT OF SALE) PAGE WITH SIZE SELECTION - RESPONSIVE
-   Main cashier interface with variant/size selection
+   POS (POINT OF SALE) PAGE WITH MULTI-VARIATION SELECTION - RESPONSIVE
+   Main cashier interface with multiple variant/size selection at once
    ============================================================ */
 
 import React, { useState, useEffect } from 'react';
@@ -30,7 +30,9 @@ const POSPage = () => {
   const [showAddConfirm, setShowAddConfirm] = useState(false);
   const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [selectedVariant, setSelectedVariant] = useState(null);
+  
+  // New state for multi-variation selection
+  const [variantQuantities, setVariantQuantities] = useState({});
   
   const [editingPrice, setEditingPrice] = useState(null);
   const [customPrice, setCustomPrice] = useState('');
@@ -82,46 +84,79 @@ const POSPage = () => {
 
   const handleProductClick = (product) => {
     setSelectedProduct(product);
-    setSelectedVariant(null);
+    // Initialize variant quantities to 0 for all variants
+    const initialQuantities = {};
+    product.variants?.forEach(variant => {
+      initialQuantities[variant.id] = 0;
+    });
+    setVariantQuantities(initialQuantities);
     setShowAddConfirm(true);
   };
 
+  const updateVariantQuantity = (variantId, change) => {
+    setVariantQuantities(prev => {
+      const currentQty = prev[variantId] || 0;
+      const newQty = Math.max(0, currentQty + change);
+      return {
+        ...prev,
+        [variantId]: newQty
+      };
+    });
+  };
+
   const confirmAddToCart = () => {
-    if (!selectedProduct || !selectedVariant) {
-      alert('Please select a size');
+    if (!selectedProduct) return;
+
+    // Get all variants with quantity > 0
+    const selectedVariants = Object.entries(variantQuantities)
+      .filter(([_, qty]) => qty > 0)
+      .map(([variantId, qty]) => ({
+        variantId: parseInt(variantId),
+        quantity: qty
+      }));
+
+    if (selectedVariants.length === 0) {
+      alert('Please select at least one size with quantity > 0');
       return;
     }
 
-    const existing = cart.find(item => item.variant_id === selectedVariant.id);
+    const defaultPrice = selectedProduct.max_price || selectedProduct.price || 0;
 
-    if (existing) {
-      setCart(cart.map(item =>
-        item.variant_id === selectedVariant.id
-          ? { ...item, quantity: parseInt(item.quantity, 10) + 1 }
-          : item
-      ));
-    } else {
-      const defaultPrice = selectedProduct.max_price || selectedProduct.price || 0;
-      
-      setCart([
-        ...cart,
-        {
-          variant_id: selectedVariant.id,
-          product_id: selectedProduct.id,
-          name: selectedProduct.name,
-          size_name: selectedVariant.size?.name || 'N/A',
-          price: defaultPrice,
-          min_price: selectedProduct.min_price || 0,
-          max_price: selectedProduct.max_price || defaultPrice,
-          quantity: 1,
-          available: selectedVariant.quantity || 0,
-        },
-      ]);
-    }
+    selectedVariants.forEach(({ variantId, quantity }) => {
+      const variant = selectedProduct.variants.find(v => v.id === variantId);
+      if (!variant) return;
+
+      const existing = cart.find(item => item.variant_id === variantId);
+
+      if (existing) {
+        // Update existing cart item
+        setCart(prevCart => prevCart.map(item =>
+          item.variant_id === variantId
+            ? { ...item, quantity: parseInt(item.quantity, 10) + quantity }
+            : item
+        ));
+      } else {
+        // Add new cart item
+        setCart(prevCart => [
+          ...prevCart,
+          {
+            variant_id: variant.id,
+            product_id: selectedProduct.id,
+            name: selectedProduct.name,
+            size_name: variant.size?.name || 'N/A',
+            price: defaultPrice,
+            min_price: selectedProduct.min_price || 0,
+            max_price: selectedProduct.max_price || defaultPrice,
+            quantity: quantity,
+            available: variant.quantity || 0,
+          },
+        ]);
+      }
+    });
 
     setShowAddConfirm(false);
     setSelectedProduct(null);
-    setSelectedVariant(null);
+    setVariantQuantities({});
   };
 
   const updateQuantity = (variantId, change) => {
@@ -205,6 +240,11 @@ const POSPage = () => {
     }
   };
 
+  // Calculate total selected items in variant selection dialog
+  const getTotalSelectedItems = () => {
+    return Object.values(variantQuantities).reduce((sum, qty) => sum + qty, 0);
+  };
+
   return (
     <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-6 p-3 sm:p-4 md:p-6">
       {/* PRODUCTS */}
@@ -270,7 +310,7 @@ const POSPage = () => {
         </div>
       </div>
 
-      {/* CART - Same as before, just showing size_name instead of just name */}
+      {/* CART */}
       <div className="bg-white border rounded-lg p-3 sm:p-4 flex flex-col order-1 lg:order-2 max-h-[600px] lg:max-h-none">
         <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">Cart</h2>
 
@@ -456,17 +496,17 @@ const POSPage = () => {
         </div>
       </div>
 
-      {/* SIZE SELECTION DIALOG */}
+      {/* MULTI-VARIATION SELECTION DIALOG - NEW DESIGN */}
       {showAddConfirm && selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start mb-3 sm:mb-4">
-              <h3 className="text-base sm:text-lg font-bold">Select Size</h3>
+              <h3 className="text-base sm:text-lg font-bold">Please select a variation</h3>
               <button
                 onClick={() => {
                   setShowAddConfirm(false);
                   setSelectedProduct(null);
-                  setSelectedVariant(null);
+                  setVariantQuantities({});
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -475,6 +515,7 @@ const POSPage = () => {
             </div>
 
             <div className="mb-4 sm:mb-6">
+              {/* Product Header */}
               <div className="bg-gray-50 p-3 sm:p-4 rounded-lg mb-4">
                 <div className="font-semibold text-sm sm:text-base">{selectedProduct.name}</div>
                 <div className="text-xs sm:text-sm text-gray-500">{selectedProduct.sku}</div>
@@ -483,56 +524,125 @@ const POSPage = () => {
                 </div>
               </div>
 
-              <label className="block text-sm font-medium mb-2">Choose Size:</label>
-              
+              {/* Variants List with Quantity Controls */}
               {selectedProduct.variants && selectedProduct.variants.length > 0 ? (
-                <div className="space-y-2">
-                  {selectedProduct.variants.map((variant) => (
-                    <button
-                      key={variant.id}
-                      onClick={() => setSelectedVariant(variant)}
-                      className={`w-full p-3 border-2 rounded-lg text-left transition-colors ${
-                        selectedVariant?.id === variant.id
-                          ? 'border-blue-600 bg-blue-50'
-                          : 'border-gray-300 hover:border-blue-300'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="font-semibold text-sm">{variant.size?.name || 'Unknown Size'}</div>
-                          <div className="text-xs text-gray-500">
-                            Stock: {variant.quantity || 0}
+                <div className="space-y-3">
+                  {selectedProduct.variants.map((variant) => {
+                    const currentQty = variantQuantities[variant.id] || 0;
+                    const isOutOfStock = variant.quantity === 0;
+                    
+                    return (
+                      <div
+                        key={variant.id}
+                        className="border rounded-lg p-3 sm:p-4"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <div className="font-semibold text-sm sm:text-base">
+                              {variant.size?.name || 'Unknown Size'}
+                            </div>
+                            <div className="text-xs sm:text-sm text-gray-600">
+                              Ksh. {formatCurrency(selectedProduct.max_price || 0)}
+                            </div>
                           </div>
                         </div>
-                        {variant.quantity === 0 && (
-                          <span className="text-xs text-red-600 font-medium">Out of Stock</span>
-                        )}
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <button
+                              onClick={() => updateVariantQuantity(variant.id, -1)}
+                              disabled={currentQty === 0 || isOutOfStock}
+                              className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded text-lg font-bold"
+                            >
+                              <Minus size={16} className="sm:w-5 sm:h-5" />
+                            </button>
+
+                            <input
+                              type="number"
+                              min="0"
+                              max={variant.quantity}
+                              value={currentQty === 0 ? '' : currentQty}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                // Allow empty string for easier editing
+                                if (value === '') {
+                                  setVariantQuantities(prev => ({
+                                    ...prev,
+                                    [variant.id]: 0
+                                  }));
+                                  return;
+                                }
+                                const numValue = parseInt(value, 10);
+                                if (!isNaN(numValue) && numValue >= 0) {
+                                  setVariantQuantities(prev => ({
+                                    ...prev,
+                                    [variant.id]: Math.min(numValue, variant.quantity)
+                                  }));
+                                }
+                              }}
+                              onFocus={(e) => {
+                                // Select all text on focus for easy replacement
+                                e.target.select();
+                              }}
+                              onBlur={() => {
+                                // Ensure valid number on blur
+                                const current = variantQuantities[variant.id];
+                                if (current === '' || current < 0 || isNaN(current)) {
+                                  setVariantQuantities(prev => ({
+                                    ...prev,
+                                    [variant.id]: 0
+                                  }));
+                                }
+                              }}
+                              disabled={isOutOfStock}
+                              className="w-12 sm:w-16 text-center border border-gray-300 rounded px-1 py-1 text-base sm:text-lg font-bold focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
+                              placeholder="0"
+                            />
+
+                            <button
+                              onClick={() => updateVariantQuantity(variant.id, 1)}
+                              disabled={isOutOfStock || currentQty >= variant.quantity}
+                              className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:bg-gray-100 disabled:text-gray-400 text-white rounded text-lg font-bold"
+                            >
+                              <Plus size={16} className="sm:w-5 sm:h-5" />
+                            </button>
+                          </div>
+
+                          {isOutOfStock ? (
+                            <span className="text-xs sm:text-sm text-red-600 font-medium">Out of Stock</span>
+                          ) : currentQty >= variant.quantity ? (
+                            <span className="text-xs sm:text-sm text-blue-600 font-medium">Max: {variant.quantity}</span>
+                          ) : (
+                            <span className="text-xs sm:text-sm text-gray-500">Stock: {variant.quantity}</span>
+                          )}
+                        </div>
                       </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 italic">No sizes available for this product.</p>
               )}
             </div>
 
+            {/* Action Buttons */}
             <div className="flex gap-2 sm:gap-3">
               <button
                 onClick={() => {
                   setShowAddConfirm(false);
                   setSelectedProduct(null);
-                  setSelectedVariant(null);
+                  setVariantQuantities({});
                 }}
-                className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm sm:text-base"
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50 text-sm sm:text-base font-medium"
               >
-                Cancel
+                Continue Shopping
               </button>
               <button
                 onClick={confirmAddToCart}
-                disabled={!selectedVariant || selectedVariant.quantity === 0}
-                className="flex-1 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                disabled={getTotalSelectedItems() === 0}
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-medium"
               >
-                Add to Cart
+                Go to Cart {getTotalSelectedItems() > 0 && `(${getTotalSelectedItems()})`}
               </button>
             </div>
           </div>
