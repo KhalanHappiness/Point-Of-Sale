@@ -217,7 +217,7 @@ const AuditTrailPage = () => {
                       </span>
                     </td>
                     <td className="p-3 text-xs sm:text-sm text-gray-600">
-                      {sale.items?.length || 0} item(s)
+                      {sale.item_count || 0} item(s)
                     </td>
                   </tr>
                 ))}
