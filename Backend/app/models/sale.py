@@ -1,4 +1,4 @@
-# app/models/sale.py (UPDATED SaleItem)
+# app/models/sale.py
 from datetime import datetime
 from app.extensions import db
 
@@ -21,7 +21,8 @@ class Sale(db.Model):
             'payment_method': self.payment_method,
             'user_id': self.user_id,
             'cashier': self.user.username if self.user else None,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'item_count': len(self.items)  # ✅ ADD THIS LINE - Always include item count
         }
         
         if include_items:
@@ -38,7 +39,7 @@ class SaleItem(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(db.Integer, db.ForeignKey('sales.id'), nullable=False)
-    variant_id = db.Column(db.Integer, db.ForeignKey('product_variants.id'), nullable=False)  # CHANGED
+    variant_id = db.Column(db.Integer, db.ForeignKey('product_variants.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
     price_at_sale = db.Column(db.Numeric(10, 2), nullable=False)
     
